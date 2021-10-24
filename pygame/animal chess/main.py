@@ -2,14 +2,20 @@
 import pygame as pg
 from piece import Piece
 import os
+import sys
 
 # Initialize
 pg.init()
 WIDTH, HEIGHT = 600, 750
 window = pg.display.set_mode((WIDTH, HEIGHT))
 pg.display.set_caption('斗兽棋 Jungle')
-icon = pg.image.load(os.path.join("assets","icon.png"))
+icon = pg.image.load(os.path.join("assets", "icon.png"))
 pg.display.set_icon(icon)
+FPS = 60
+clock = pg.time.Clock()
+# pg.mixer.music.load(os.path.join('assets', 'background.mp3'))
+# pg.mixer.music.play(-1)
+
 # Board Set Up
 GRID = 70
 START_X = (WIDTH - GRID * 7) / 2  # Starting point of board
@@ -21,6 +27,12 @@ COLORS = {
     "black": (0, 0, 0),
     "white": (255, 255, 255),
 }
+
+s = pg.Surface((WIDTH, HEIGHT))
+s.set_alpha(128)
+s.fill(COLORS['white'])
+
+menu_font = pg.font.Font(os.path.join("assets", "8-BIT WONDER.TTF"), 40)
 
 
 def draw_terrain():
@@ -65,7 +77,7 @@ def draw_board(terrain):
             if i == 3:
                 if j == 1 or j == 4:
                     window.blit(river, start_pos(i, j))
-            if terrain[i][j] != '2' and terrain[i][j]!='0':
+            if terrain[i][j] != '2' and terrain[i][j] != '0':
                 # pg.draw.rect(surface, rgb,((left, top), (width, height))
                 window.blit(tiles[terrain[i][j]], start_pos(i, j))
             pg.draw.rect(window, (0, 0, 0), ((GRID * j + START_X, GRID * i + START_Y), (GRID, GRID)), 3)
@@ -142,8 +154,6 @@ def show_mouse_loc(player):
 
 
 def main():
-    FPS = 60
-    clock = pg.time.Clock()
     run = True
     terrain = draw_terrain()
     board = reset()
@@ -151,11 +161,15 @@ def main():
     start_row, start_col = None, None
     player = True
     player_font = pg.font.Font('freesansbold.ttf', 20)
+    player1 = [1, 2, 3, 4, 5, 6, 7, 8]
+    player2 = [1, 2, 3, 4, 5, 6, 7, 8]
+    pause = False
+    move_sound = pg.mixer.Sound(os.path.join("assets", "move-sound.mp3"))
 
     def win():
-        if board[0][3]:
+        if board[0][3] or not player1:
             return 2
-        elif board[8][3]:
+        elif board[8][3] or not player2:
             return 1
         else:
             return 0
@@ -166,6 +180,7 @@ def main():
         draw_board(terrain)
         print_pieces(board)
         row, col = show_mouse_loc(player)
+
         if player:
             player_text = "Player 1"
             player_color = COLORS["red"]
@@ -174,21 +189,51 @@ def main():
             player_color = COLORS['green']
         player_label = player_font.render("Turn: " + player_text, True, player_color)
         window.blit(player_label, (START_X, START_Y - player_label.get_height() * 1.1))
+
+        if not pause:
+            circle = pg.draw.circle(window, COLORS["black"], center=(550, 30), radius=15, width=3)
+            if circle.collidepoint(pg.mouse.get_pos()):
+                pause_color = (255, 0, 0)
+            else:
+                pause_color = COLORS['black']
+            icon = player_font.render("ll", True, pause_color)
+            window.blit(icon, (550 - icon.get_width() / 2, 30 - icon.get_height() / 2 + 1))
+
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 run = False
-            if event.type == pg.MOUSEBUTTONDOWN and event.button == 1 and row is not None:
-                selected = board[row][col]
-                if choose_piece:
-                    if (row, col) in moves:
-                        board[start_row][start_col].move(board, row, col)
-                        player = not player  # change player
-                    choose_piece = False
-                elif not choose_piece and selected is not None:
-                    if selected.color == player:
-                        choose_piece = True
-                        start_row, start_col = row, col
-                        moves = selected.validMove(board, terrain)
+                pg.quit()
+                sys.exit()
+
+            if event.type == pg.KEYDOWN:
+                if event.key == pg.K_ESCAPE:
+                    pause = not pause
+
+            if event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
+                if not pause:
+                    if circle.collidepoint(pg.mouse.get_pos()):
+                        pause = True
+                    if row is not None:
+                        selected = board[row][col]
+                        if choose_piece:
+                            if (row, col) in moves:
+                                move_sound.play()
+                                eaten = board[row][col]
+                                if eaten:
+                                    if player:
+                                        player2.remove(eaten.val)
+                                    else:
+                                        player1.remove(eaten.val)
+                                board[start_row][start_col].move(board, row, col)
+                                player = not player  # change player
+                            choose_piece = False
+                        elif not choose_piece and selected is not None:
+                            if selected.color == player:
+                                choose_piece = True
+                                start_row, start_col = row, col
+                                moves = selected.validMove(board, terrain)
+                else:
+                    pause = False
 
         if choose_piece:
             for move in moves:
@@ -197,36 +242,151 @@ def main():
                 pg.draw.circle(window, (100, 100, 100), (x + GRID / 2, y + GRID / 2), 5)
 
         winner = win()
+
         if winner:
             run = False
-            return winner
+        if pause:
+            pause_label = menu_font.render("PAUSE", True, COLORS["black"])
+            window.blit(s, (0, 0))
+            window.blit(pause_label,
+                        (WIDTH / 2 - pause_label.get_width() / 2, HEIGHT / 2 - pause_label.get_height() / 2))
+        pg.display.update()
+    win_menu(winner)
 
+
+class Option:
+    sound = pg.mixer.Sound(os.path.join("assets", "select-sound.wav"))
+    option_font = pg.font.Font(os.path.join("assets", "8-BIT WONDER.TTF"), 32)
+    rect_width = 400
+    rect_height = 90
+    start_height = 425
+    gap = 30
+    color = (0, 0, 102)
+
+    def __init__(self, text, num):
+        self.text_label = self.option_font.render(text, True, self.color)
+        self.text = text
+        self.num = num
+        self.rect = pg.Rect(WIDTH / 2 - self.rect_width / 2,
+                            self.start_height + self.num * (self.rect_height + self.gap),
+                            self.rect_width,
+                            self.rect_height)
+
+    def show_screen(self, color=color, change=None):
+        pg.draw.rect(window, color, self.rect, 3, 5)
+        if change:
+            text_label = change
+        else:
+            text_label = self.text_label
+
+        window.blit(text_label,
+                    (WIDTH / 2 - text_label.get_width() / 2,
+                     self.start_height + self.num * (
+                             self.rect_height + self.gap) + self.rect_height / 2 - text_label.get_height() / 2))
+
+    def mouse_touch(self):
+        if self.rect.collidepoint(pg.mouse.get_pos()):
+            self.hover()
+            return True
+        else:
+            return False
+
+    def hover(self):
+        color = (102, 0, 0)
+        changed_text = self.option_font.render(self.text, True, color)
+        self.show_screen(color, changed_text)
+
+    def play_sound(self):
+        self.sound.play()
+
+
+def rules():
+    print('hi')
+    pass
+
+
+def win_menu(winner):
+    play_again = Option("PLAY AGAIN", 0)
+    run = True
+    play = False
+
+    while run:
+        clock.tick(FPS)
+
+        for event in pg.event.get():
+            if event.type == pg.QUIT:
+                run = False
+                pg.quit()
+                sys.exit()
+
+            if event.type == pg.KEYDOWN:
+                if event.key == pg.K_KP_ENTER or event.key == pg.K_RETURN:
+                    play_again.play_sound()
+                    main()
+
+            if play and event.type == pg.MOUSEBUTTONDOWN:
+                run = False
+                main()
+
+        window.blit(s, (0, 0))
+        winner_label = menu_font.render("Player " + str(winner) + " WIN", True,
+                                        COLORS["red" if winner == 1 else "green"])
+        window.blit(winner_label,
+                    (WIDTH / 2 - winner_label.get_width() / 2, HEIGHT / 2.75 - winner_label.get_height() / 2))
+        play_again.show_screen()
+        play = play_again.mouse_touch()
         pg.display.update()
 
 
 def main_menu():
-    title_font = pg.font.SysFont("comicsans", 40)
     run = True
-    winner = None
-    title_label = title_font.render("Red Goes First. Press Mouse to Begin", True, (0, 0, 0))
-    s = pg.Surface((WIDTH, HEIGHT))
-    s.set_alpha(128)
-    s.fill(COLORS['white'])
+    menu_label = menu_font.render("Jungle", True, (0, 0, 102))
+    bg = pg.image.load(os.path.join("assets", "background.png"))
+
+    options = []
+    options.append(Option("PLAY", 0))
+    options.append(Option("RULES", 1))
+    options_dict = {
+        "PLAY": main,
+        "RULES": rules,
+    }
+    selection = 0
+
     while run:
-        window.blit(s, (0, 0))
+        window.blit(bg, (0, 0))
+
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 run = False
+
             if event.type == pg.MOUSEBUTTONDOWN:
-                winner = main()
-        if winner:
-            winner_label = title_font.render("Winner: Player " + str(winner), True,
-                                             COLORS["red" if winner == 1 else "green"])
-            window.blit(winner_label,
-                        (WIDTH / 2 - winner_label.get_width() / 2, HEIGHT / 2 - winner_label.get_height() / 2))
-        else:
-            window.blit(title_label,
-                        (WIDTH / 2 - title_label.get_width() / 2, HEIGHT / 2 - title_label.get_height() / 2))
+                options[selection].play_sound()
+                options_dict[options[selection].text]()
+
+            if event.type == pg.KEYDOWN:
+                options[selection].play_sound()
+                if event.key == pg.K_DOWN:
+                    selection += 1
+                if event.key == pg.K_UP:
+                    selection -= 1
+                if event.key == pg.K_KP_ENTER or event.key == pg.K_RETURN:
+                    options_dict[options[selection].text]()
+
+        for index, option in enumerate(options):
+            option.show_screen()
+            if option.mouse_touch():
+                if index != selection:
+                    options[selection].play_sound()
+                    selection = index
+            window.blit(menu_label,
+                        (WIDTH / 2 - menu_label.get_width() / 2, HEIGHT / 2.75 - menu_label.get_height() / 2))
+            options[selection].hover()
+
+        if selection >= len(options):
+            selection = 0
+        if selection < 0:
+            selection = len(options) - 1
+
         pg.display.update()
     pg.quit()
 
