@@ -1,7 +1,6 @@
 # load picture
 import os
 
-
 class Piece(object):
     def __init__(self, row, col, animal, color):
         """
