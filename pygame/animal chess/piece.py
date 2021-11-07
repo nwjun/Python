@@ -23,7 +23,7 @@ class Piece(object):
         self.val = ANIMAL[animal]
         self.color = color
         self.movement = []
-        self.img = os.path.join("assets", self.animal + ("Red" if self.color == True else "Green") + ".png")
+        self.img = os.path.join("assets", "pieceImg",self.animal + ("Red" if self.color == True else "Green") + ".png")
 
     def validEat(self, board, dest_row, dest_col):
         """
@@ -88,7 +88,7 @@ class Piece(object):
             if (row >= 0 and row <= 8 and col >= 0 and col <= 6):
                 # rat can only eats enemy if they're in the same terrain (except trap)
                 if self.animal == 'rat' and terrain[self.row][self.col] != '1' and terrain[self.row][self.col] != \
-                        terrain[row][col]:
+                        terrain[row][col] and terrain[row][col] !='1':
                     # no animal(rat or elephant) in destination
                     if board[row][col] is not None:
                         continue
