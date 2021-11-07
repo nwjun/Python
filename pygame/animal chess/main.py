@@ -13,6 +13,8 @@ icon = pg.image.load(os.path.join("assets", "icon.png"))
 pg.display.set_icon(icon)
 FPS = 60
 clock = pg.time.Clock()
+
+# Background music
 pg.mixer.music.load(os.path.join('assets', 'background.wav'))
 pg.mixer.music.play(-1)
 
@@ -21,6 +23,7 @@ GRID = 70
 START_X = (WIDTH - GRID * 7) / 2  # Starting point of board
 START_Y = (HEIGHT - GRID * 9) / 2
 
+# Frequent use colors
 COLORS = {
     "red": (172, 50, 50),
     "green": (67, 141, 90),
@@ -37,7 +40,10 @@ menu_font = pg.font.Font(os.path.join("assets", "8-BIT WONDER.TTF"), 40)
 
 def draw_terrain():
     """
-    Draw terrain
+    Return multidimensional array which indicates the terrain.
+    1: trap
+    2: river
+    3: hole
     """
     terrain = [["0" for i in range(7)] for i in range(9)]
 
@@ -119,7 +125,7 @@ def reset():
 
 def start_pos(row, col):
     """
-    Return left corner position
+    Return left corner position of a particular grid
     """
     return (GRID * col + START_X, GRID * row + START_Y)
 
@@ -146,12 +152,20 @@ def print_pieces(board):
 
 
 def in_board(x, y):
+    """
+    x: x-coordinate of mouse
+    y: y-coordinate of mouse
+    Determine whether (x, y) is inside the board
+    """
     if x > START_X and x < START_X + GRID * 7 and y > START_Y and y < START_Y + GRID * 9:
         return True
     return False
 
 
 def show_mouse_loc(player):
+    """
+    Draw a box at current grid if the mouse location is inside the board
+    """
     color = (255, 0, 0) if player else (0, 255, 0)
     x, y = pg.mouse.get_pos()
     if in_board(x, y):
@@ -166,20 +180,24 @@ def show_mouse_loc(player):
 def main():
     run = True
     terrain = draw_terrain()
-    board = reset()
+    board = reset() # new board
     choose_piece = False
     start_row, start_col = None, None
-    player = True
+    pause = False
+
+    player = True # True: Red, False: Green
     player_font = pg.font.Font('freesansbold.ttf', 20)
     player1 = [1, 2, 3, 4, 5, 6, 7, 8]
     player2 = [1, 2, 3, 4, 5, 6, 7, 8]
-    pause = False
+    
     move_sound = pg.mixer.Sound(os.path.join("assets", "move-sound.mp3"))
     move_sound_playing = False
 
+    # "Pause" icon
     pause_color = COLORS['black']
     icon = player_font.render("ll", True, pause_color)
 
+    # Control background music
     mute = False
     muteImg = pg.image.load(os.path.join('assets', 'mute.png')) # Icon made by Pixel perfect from www.flaticon.com
     muteImg = pg.transform.scale(muteImg, (25, 25))
@@ -189,6 +207,9 @@ def main():
         70, 30 - muteImg.get_height()//2 + 11
 
     def win():
+        """
+        Determine which player win
+        """
         if board[0][3] or not player1:
             return 2
         elif board[8][3] or not player2:
@@ -216,9 +237,11 @@ def main():
         window.blit(player_label, (START_X, START_Y -
                     player_label.get_height() * 1.1))
 
+        # "Pause" icon
         if not pause:
             circle = pg.draw.circle(
                 window, COLORS["black"], center=(550, 30), radius=15, width=3)
+            # Determine whether mouse is hovering "Pause" icon
             if circle.collidepoint(pg.mouse.get_pos()):
                 pause_color = (255, 0, 0)
             else:
@@ -226,49 +249,69 @@ def main():
             window.blit(icon, (550 - icon.get_width() / 2,
                         30 - icon.get_height() / 2 + 1))
 
+        # Get all the event
         for event in pg.event.get():
+            # Quit program
             if event.type == pg.QUIT:
                 run = False
                 pg.quit()
                 sys.exit()
 
+            # If "escape" key is pressed, pause the game
             if event.type == pg.KEYDOWN:
                 if event.key == pg.K_ESCAPE:
                     pause = not pause
 
+            # If left click,
             if event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
+                # The game is not pause
                 if not pause:
                     if circle.collidepoint(pg.mouse.get_pos()):
                         pause = True
 
                     if muteRect.collidepoint(pg.mouse.get_pos()):
                         mute = not mute
+                        # mute and unmute background music
                         pg.mixer.music.pause() if mute else pg.mixer.music.unpause()
 
+                    # if Piece is selected
                     if row is not None:
                         selected = board[row][col]
+
                         if move_sound_playing:
+                            # Stop sound effect
                             move_sound_playing = False
                             move_sound.stop()
+
+                        # if piece is selected, the next step is to move to valid destination    
                         if choose_piece:
+                            # destination selected is valid
                             if (row, col) in moves:
                                 move_sound.play()
                                 move_sound_playing = True
                                 eaten = board[row][col]
+                                # if opponent is in the destination, "eat" it
                                 if eaten:
+                                    # remove player2's piece if it is player1 playing
                                     if player:
                                         player2.remove(eaten.val)
+                                    # vice-versa
                                     else:
                                         player1.remove(eaten.val)
+                                # move piece in the board
                                 board[start_row][start_col].move(
                                     board, row, col)
                                 player = not player  # change player
+                            # unselect piece
                             choose_piece = False
-
+                        
+                        # no piece is selected
                         elif not choose_piece and selected is not None:
+                            # if the piece chosen is player self piece, find out its valid moves
                             if selected.color == player:
                                 choose_piece = True
                                 start_row, start_col = row, col
+                                # find all the valid moves
                                 moves = selected.validMove(board, terrain)
                 else:
                     pause = False
