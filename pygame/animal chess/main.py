@@ -176,6 +176,12 @@ def show_mouse_loc(player):
     else:
         return None, None
 
+def convertIcon(icon_name, height = 24, width=24):
+    icon = pg.image.load(os.path.join('assets', icon_name))
+    icon = pg.transform.scale(icon, (height, width))
+    icon.convert()  # optimise image format and makes drawing faster
+    iconRect = icon.get_rect()  # returns a Rect object from an image
+    return icon, iconRect
 
 def main():
     run = True
@@ -199,12 +205,18 @@ def main():
 
     # Control background music
     mute = False
-    muteImg = pg.image.load(os.path.join('assets', 'mute.png')) # Icon made by Pixel perfect from www.flaticon.com
-    muteImg = pg.transform.scale(muteImg, (25, 25))
-    muteImg.convert()  # optimise image format and makes drawing faster
-    muteRect = muteImg.get_rect()  # returns a Rect object from an image
+    muteImg, muteRect = convertIcon('mute.png')
     muteRect.center = WIDTH - muteImg.get_width()//2 - icon.get_width() - \
         70, 30 - muteImg.get_height()//2 + 11
+    
+    soundImg, soundRect = convertIcon('volume.png')
+    soundRect.center = WIDTH - soundImg.get_width()//2 - icon.get_width() - \
+        70, 30 - soundImg.get_height()//2 + 11
+
+    # Reset icon
+    resetImg, resetRect = convertIcon('undo.png')
+    resetRect.center = WIDTH - resetImg.get_width()//2 - icon.get_width() - \
+        90 - soundImg.get_width(), 30 - soundImg.get_height()//2 + 11
 
     def win():
         """
@@ -223,8 +235,14 @@ def main():
         draw_board(terrain)
         print_pieces(board)
         row, col = show_mouse_loc(player)
-        window.blit(muteImg, muteRect)
-        pg.draw.rect(window, "#ffffff", muteRect, 1)
+        
+        window.blit(resetImg, resetRect)
+        
+        # blit "mute" or "sound" icon
+        if not mute:
+            window.blit(muteImg, muteRect)
+        else:
+            window.blit(soundImg, soundRect)
 
         if player:
             player_text = "Player 1"
@@ -259,17 +277,26 @@ def main():
 
             # If "escape" key is pressed, pause the game
             if event.type == pg.KEYDOWN:
+                if pause:
+                    pause = not pause   
                 if event.key == pg.K_ESCAPE:
                     pause = not pause
-
+                if event.key == pg.K_r:
+                    main()
+    
+                
             # If left click,
             if event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
                 # The game is not pause
                 if not pause:
-                    if circle.collidepoint(pg.mouse.get_pos()):
+                    mouse_pos = pg.mouse.get_pos()
+                    if circle.collidepoint(mouse_pos):
                         pause = True
-
-                    if muteRect.collidepoint(pg.mouse.get_pos()):
+                    # if reset icon is pressed
+                    if resetRect.collidepoint(mouse_pos):
+                        main()
+                    # if mute is pressed
+                    if muteRect.collidepoint(mouse_pos):
                         mute = not mute
                         # mute and unmute background music
                         pg.mixer.music.pause() if mute else pg.mixer.music.unpause()
